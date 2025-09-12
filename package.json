@@ -5,7 +5,8 @@
   "type": "commonjs",
   "scripts": {
     "start": "electron .",
-    "test": "vitest run"
+    "test": "vitest run",
+    "release": "electron-builder --publish always"
   },
   "dependencies": {
     "vue": "^3.4.0",
@@ -16,6 +17,7 @@
   },
   "devDependencies": {
     "electron": "^28.2.0",
+    "electron-builder": "^24.13.3",
     "@vue/test-utils": "^2.4.1",
     "jsdom": "^22.1.0",
     "vitest": "^1.0.0",
@@ -24,5 +26,30 @@
   },
   "overrides": {
     "esbuild": "^0.21.5"
+  },
+  "build": {
+    "appId": "com.poloroid.astra-db-manager",
+    "productName": "Astra DB Manager",
+    "files": [
+      "**/*",
+      "!tests/**",
+      "!**/*.spec.js"
+    ],
+    "asar": true,
+    "mac": {
+      "target": ["dmg"],
+      "category": "public.app-category.developer-tools",
+      "identity": null
+    },
+    "win": {
+      "target": ["nsis"],
+      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+    },
+    "linux": {
+      "target": ["AppImage"],
+      "category": "Development",
+      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+    },
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
   }
 }
