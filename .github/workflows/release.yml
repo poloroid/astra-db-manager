@@ -22,13 +22,39 @@ jobs:
         run: npm ci
       - name: Run tests
         run: npm test
-      - name: Build and publish with electron-builder
+      - name: Build and publish (macOS signed + notarized)
+        if: runner.os == 'macOS'
         uses: electron-builder/action@v1
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           args: --publish always
         env:
-          # Disable macOS code signing; build unsigned artifacts
-          CSC_IDENTITY_AUTO_DISCOVERY: false
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/.cache/electron-builder
+          # Apple Developer ID cert (.p12 or .pfx) provided as a base64 data URL or HTTPS URL
+          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
+          # Notarization credentials
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
 
+      - name: Build and publish (Windows signed)
+        if: runner.os == 'Windows'
+        uses: electron-builder/action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          args: --publish always
+        env:
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\\.cache\\electron-builder
+          # Windows code signing cert (.pfx) as base64 data URL or HTTPS URL
+          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Build and publish (Linux)
+        if: runner.os == 'Linux'
+        uses: electron-builder/action@v1
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          args: --publish always
+        env:
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/.cache/electron-builder

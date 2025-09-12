@@ -39,7 +39,10 @@
     "mac": {
       "target": ["dmg"],
       "category": "public.app-category.developer-tools",
-      "identity": null
+      "hardenedRuntime": true,
+      "entitlements": "entitlements.mac.plist",
+      "entitlementsInherit": "entitlements.mac.plist",
+      "gatekeeperAssess": false
     },
     "win": {
       "target": ["nsis"],
