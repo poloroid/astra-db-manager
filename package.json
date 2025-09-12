@@ -1,0 +1,21 @@
+{
+  "name": "astra-db-manager",
+  "version": "0.1.0",
+  "main": "main.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "electron .",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "vue": "^3.4.0",
+    "keytar": "^7.9.0"
+  },
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "@vue/test-utils": "^2.4.1",
+    "jsdom": "^22.1.0",
+    "vitest": "^1.0.0",
+    "@vitejs/plugin-vue": "^5.0.0"
+  }
+}
