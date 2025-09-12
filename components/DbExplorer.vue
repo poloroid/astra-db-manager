@@ -8,6 +8,7 @@
     <div class="tabs">
       <button :class="{active: tab==='tables'}" @click="tab='tables'">Tables</button>
       <button :class="{active: tab==='types'}" @click="tab='types'">Types</button>
+      <button :class="{active: tab==='console'}" @click="tab='console'">Console</button>
     </div>
     <div class="pane">
       <div v-if="loading" class="hint">Loading schema…</div>
@@ -15,6 +16,7 @@
         <div v-if="tab==='tables'">
           <div class="split">
             <div class="list">
+              <div v-if="!tables.length" class="item muted">No tables found in this keyspace.</div>
               <div v-for="t in tables" :key="t" class="item" :class="{selected: t===selectedTable}" @click="selectTable(t)">{{ t }}</div>
             </div>
             <div class="detail">
@@ -23,9 +25,10 @@
             </div>
           </div>
         </div>
-        <div v-else>
+        <div v-else-if="tab==='types'">
           <div class="split">
             <div class="list">
+              <div v-if="!types.length" class="item muted">No types found in this keyspace.</div>
               <div v-for="u in types" :key="u" class="item" :class="{selected: u===selectedType}" @click="selectType(u)">{{ u }}</div>
             </div>
             <div class="detail">
@@ -33,6 +36,9 @@
               <div v-else class="hint">Select a type to see its definition.</div>
             </div>
           </div>
+        </div>
+        <div v-else>
+          <cql-console :db="db" :known-tables="tables" :known-types="types" />
         </div>
       </div>
     </div>

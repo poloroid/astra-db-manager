@@ -456,6 +456,12 @@ ipcMain.handle('db-schema', async (event, { slug }) => {
     await client.connect();
     const keyspace = entry.keyspaceName || client.keyspace || (await deriveKeyspaceFromScb(entry.scbPath));
     if (!keyspace) throw new Error('Keyspace not found in SCB');
+    // Prefer querying system schema to avoid driver shape differences
+    const listed = await listTablesAndTypes(client, keyspace);
+    if (listed.tables.length || listed.types.length) {
+      return { success: true, keyspace, tables: listed.tables, types: listed.types };
+    }
+    // Fallback to metadata map/object shapes
     const ks = await getKeyspaceMeta(client.metadata, keyspace);
     if (!ks) throw new Error(`Keyspace not found: ${keyspace}`);
     const tables = mapLikeKeys(ks.tables).sort();
@@ -473,10 +479,16 @@ ipcMain.handle('describe-table', async (event, { slug, table }) => {
   try {
     await client.connect();
     const keyspace = entry.keyspaceName || client.keyspace || (await deriveKeyspaceFromScb(entry.scbPath));
+    // Try driver metadata first
     const ks = await getKeyspaceMeta(client.metadata, keyspace);
     const tm = ks && ks.tables ? mapLikeGet(ks.tables, table) : null;
-    if (!tm) throw new Error(`Table not found: ${keyspace}.${table}`);
-    const ddl = renderCreateTable(keyspace, tm);
+    if (tm) {
+      const ddl = renderCreateTable(keyspace, tm);
+      return { success: true, createCql: ddl };
+    }
+    // Fallback: build from system schema
+    const ddl = await renderCreateTableFromSystem(client, keyspace, table);
+    if (!ddl) throw new Error(`Table not found: ${keyspace}.${table}`);
     return { success: true, createCql: ddl };
   } catch (e) {
     return { success: false, message: e.message };
@@ -492,9 +504,43 @@ ipcMain.handle('describe-type', async (event, { slug, type }) => {
     const keyspace = entry.keyspaceName || client.keyspace || (await deriveKeyspaceFromScb(entry.scbPath));
     const ks = await getKeyspaceMeta(client.metadata, keyspace);
     const udt = ks && ks.udts ? mapLikeGet(ks.udts, type) : null;
-    if (!udt) throw new Error(`Type not found: ${keyspace}.${type}`);
-    const ddl = renderCreateType(keyspace, udt);
+    if (udt) {
+      const ddl = renderCreateType(keyspace, udt);
+      return { success: true, createCql: ddl };
+    }
+    // Fallback: build from system schema
+    const ddl = await renderCreateTypeFromSystem(client, keyspace, type);
+    if (!ddl) throw new Error(`Type not found: ${keyspace}.${type}`);
     return { success: true, createCql: ddl };
+  } catch (e) {
+    return { success: false, message: e.message };
+  } finally {
+    await client.shutdown().catch(() => {});
+  }
+});
+
+// Execute a CQL command(s) against a saved DB
+ipcMain.handle('execute-cql', async (event, { slug, cql }) => {
+  const { client } = await connectFor(slug);
+  try {
+    await client.connect();
+    if (!cql || !String(cql).trim()) throw new Error('Empty CQL');
+    // Naive split on semicolons; users should avoid semicolons in strings
+    const statements = String(cql)
+      .split(';')
+      .map(s => s.trim())
+      .filter(Boolean);
+    if (!statements.length) throw new Error('No statements to execute');
+    const results = [];
+    for (const stmt of statements) {
+      const t0 = Date.now();
+      const rs = await client.execute(stmt);
+      const ms = Date.now() - t0;
+      const columns = (rs && rs.columns) ? rs.columns.map(c => c.name) : (rs?.rows?.[0] ? Object.keys(rs.rows[0]) : []);
+      const rows = (rs && Array.isArray(rs.rows)) ? rs.rows : [];
+      results.push({ statement: stmt, tookMs: ms, columns, rows, rowCount: rows.length });
+    }
+    return { success: true, results };
   } catch (e) {
     return { success: false, message: e.message };
   } finally {
@@ -529,4 +575,72 @@ function renderCreateTable(keyspace, tm) {
 function renderCreateType(keyspace, udt) {
   const fields = udt.fields.map(f => `  ${f.name} ${f.type}`);
   return `CREATE TYPE ${keyspace}.${udt.name} (\n${fields.join(',\n')}\n);`;
+}
+
+async function listTablesAndTypes(client, keyspace) {
+  const ks = String(keyspace);
+  const ksLc = ks.toLowerCase();
+  const tables = await queryNames(client, ksLc, [
+    'SELECT table_name FROM system_schema.tables WHERE keyspace_name = ?',
+    // Fallback: derive from columns table if needed
+    'SELECT DISTINCT table_name FROM system_schema.columns WHERE keyspace_name = ?'
+  ], 'table_name');
+  const types = await queryNames(client, ksLc, [
+    'SELECT type_name FROM system_schema.types WHERE keyspace_name = ?'
+  ], 'type_name');
+  return { tables: tables.sort(), types: types.sort() };
+}
+
+async function queryNames(client, keyspace, queries, field) {
+  for (const cql of queries) {
+    try {
+      const rs = await client.execute(cql, [keyspace], { prepare: true });
+      if (rs && Array.isArray(rs.rows)) {
+        const out = rs.rows.map(r => r[field]).filter(v => typeof v === 'string');
+        if (out.length) return Array.from(new Set(out));
+      }
+    } catch (_) { /* try next */ }
+  }
+  return [];
+}
+
+async function renderCreateTableFromSystem(client, keyspace, table) {
+  try {
+    const rs = await client.execute(
+      'SELECT column_name, kind, position, type FROM system_schema.columns WHERE keyspace_name = ? AND table_name = ?',
+      [String(keyspace).toLowerCase(), table],
+      { prepare: true }
+    );
+    const rows = rs?.rows || [];
+    if (!rows.length) return null;
+    const cols = rows.map(r => ({ name: r.column_name, kind: r.kind, pos: r.position ?? 0, type: r.type }));
+    const pks = cols.filter(c => c.kind === 'partition_key').sort((a,b) => a.pos - b.pos).map(c => c.name);
+    const cks = cols.filter(c => c.kind === 'clustering').sort((a,b) => a.pos - b.pos).map(c => c.name);
+    const allCols = cols.map(c => `  ${c.name} ${c.type}`);
+    const pk = pks.length > 1 ? `(${pks.join(', ')})` : pks[0];
+    const ckPart = cks.length ? `, ${cks.join(', ')}` : '';
+    const primary = `  PRIMARY KEY (${pk}${ckPart})`;
+    const lines = [...allCols, primary].join(',\n');
+    return `CREATE TABLE ${keyspace}.${table} (\n${lines}\n);`;
+  } catch (_) {
+    return null;
+  }
+}
+
+async function renderCreateTypeFromSystem(client, keyspace, type) {
+  try {
+    const rs = await client.execute(
+      'SELECT field_names, field_types FROM system_schema.types WHERE keyspace_name = ? AND type_name = ?',
+      [String(keyspace).toLowerCase(), type],
+      { prepare: true }
+    );
+    const row = rs?.rows?.[0];
+    if (!row) return null;
+    const names = row.field_names || [];
+    const types = row.field_types || [];
+    const pairs = names.map((n, i) => `  ${n} ${types[i]}`);
+    return `CREATE TYPE ${keyspace}.${type} (\n${pairs.join(',\n')}\n);`;
+  } catch (_) {
+    return null;
+  }
 }

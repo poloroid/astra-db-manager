@@ -20,4 +20,6 @@ contextBridge.exposeInMainWorld('electronAPI', {
   dbSchema: (slug) => ipcRenderer.invoke('db-schema', { slug }),
   describeTable: (slug, table) => ipcRenderer.invoke('describe-table', { slug, table }),
   describeType: (slug, type) => ipcRenderer.invoke('describe-type', { slug, type })
+  ,
+  executeCql: (slug, cql) => ipcRenderer.invoke('execute-cql', { slug, cql })
 });
