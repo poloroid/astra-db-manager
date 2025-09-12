@@ -1,4 +1,7 @@
 # Astra DB Manager
+[![CI](https://github.com/poloroid/astra-db-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/poloroid/astra-db-manager/actions/workflows/ci.yml)
+[![Node](https://img.shields.io/badge/node-18.x%20%7C%2020.x%20%7C%2022.x-339933?logo=node.js&logoColor=white)](#)
+[![License](https://img.shields.io/github/license/poloroid/astra-db-manager)](https://github.com/poloroid/astra-db-manager/blob/main/LICENSE)
 
 Electron + Vue.js skeleton application for managing Astra databases.
 
@@ -17,6 +20,11 @@ Electron + Vue.js skeleton application for managing Astra databases.
 npm install
 npm start
 ```
+
+Live reload (no manual restarts)
+- The app auto-reloads on file changes in development via `electron-reload`.
+- Just run `npm start` once and edit files like `components/*.vue`, `renderer.js`, `styles.css`, `main.js`.
+- Changes to renderer files reload the window; changes to main/preload restart Electron.
 
 ## Testing
 

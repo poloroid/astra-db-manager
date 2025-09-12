@@ -12,9 +12,16 @@
   <div id="app">
     <hamburger-menu @toggle-dark="toggleDarkMode"></hamburger-menu>
 
-    <h1>Astra DBs</h1>
-    <database-list :databases="databases"></database-list>
-    <button @click="openModal">Add Database</button>
+    <h1>{{ title }}</h1>
+
+    <div v-if="view !== 'explorer'">
+      <database-list :databases="databases" @explore="exploreDb"></database-list>
+      <button @click="openModal">Add Database</button>
+    </div>
+
+    <div v-else>
+      <db-explorer :db="currentDb" @back="backHome"></db-explorer>
+    </div>
 
     <add-database-modal
       v-if="showModal"
