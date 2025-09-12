@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Astra DB Manager</title>
+  <link rel="stylesheet" href="styles.css" />
+  <script type="module" src="renderer.js" defer></script>
+</head>
+<body>
+  <div id="app">
+    <hamburger-menu @toggle-dark="toggleDarkMode"></hamburger-menu>
+
+    <h1>Astra DBs</h1>
+    <database-list :databases="databases"></database-list>
+    <button @click="openModal">Add Database</button>
+
+    <add-database-modal
+      v-if="showModal"
+      @save="addDatabase"
+      @test="testConnection"
+      @close="closeModal"
+    ></add-database-modal>
+  </div>
+</body>
+</html>
