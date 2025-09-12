@@ -67,6 +67,24 @@ const app = createApp({
       this.currentDb = db;
       this.view = 'explorer';
     },
+    async deleteDatabase(db) {
+      try {
+        if (!db?.slug) return;
+        const ok = confirm(`Remove saved database "${db.name}" from this app?`);
+        if (!ok) return;
+        const res = await window.electronAPI.deleteDatabase(db.slug);
+        if (res?.success) {
+          this.databases = this.databases.filter(d => d.slug !== db.slug);
+          if (this.currentDb && this.currentDb.slug === db.slug) {
+            this.backHome();
+          }
+        } else if (res && res.message) {
+          alert(`Delete failed: ${res.message}`);
+        }
+      } catch (e) {
+        alert('Delete failed');
+      }
+    },
     backHome() {
       this.view = 'home';
       this.currentDb = null;

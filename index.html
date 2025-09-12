@@ -15,7 +15,7 @@
     <h1>{{ title }}</h1>
 
     <div v-if="view !== 'explorer'">
-      <database-list :databases="databases" @explore="exploreDb"></database-list>
+      <database-list :databases="databases" @explore="exploreDb" @delete="deleteDatabase"></database-list>
       <button @click="openModal">Add Database</button>
     </div>
 

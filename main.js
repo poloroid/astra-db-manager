@@ -92,12 +92,12 @@ ipcMain.handle('test-connection', async (event, { scbPath, credsPath }) => {
     const hasClientId = keys.includes('clientId') || keys.includes('clientID');
     const hasSecret = keys.includes('clientSecret') || keys.includes('secret');
     const hasToken = keys.includes('token') || keys.includes('tokenJwt');
-    const missing = [];
-    if (!hasClientId) missing.push('clientId');
-    if (!hasSecret) missing.push('secret');
-    if (!hasToken) missing.push('token');
-    if (missing.length) {
-      throw new Error(`Credentials JSON missing required fields: ${missing.join(', ')}`);
+    const missingFields = [];
+    if (!hasClientId) missingFields.push('clientId');
+    if (!hasSecret) missingFields.push('secret');
+    if (!hasToken) missingFields.push('token');
+    if (missingFields.length) {
+      throw new Error(`Credentials JSON missing required fields: ${missingFields.join(', ')}`);
     }
 
     // Attempt a real connectivity check if a token is available
@@ -290,6 +290,30 @@ ipcMain.handle('get-databases', async () => {
   }
 });
 
+// Delete a saved database (app-local only)
+ipcMain.handle('delete-db', async (event, { slug }) => {
+  try {
+    if (!slug) throw new Error('Missing database slug');
+    const list = await readDbIndex();
+    const entry = list.find(e => e.slug === slug);
+    if (!entry) {
+      // Nothing to delete; treat as success
+      return { success: true };
+    }
+    // Remove stored credentials from keychain
+    try { await keytar.deletePassword('astra-db-manager', entry.name); } catch (_) {}
+    // Remove on-disk files for this DB
+    const dir = path.dirname(entry.scbPath);
+    try { await fs.promises.rm(dir, { recursive: true, force: true }); } catch (_) {}
+    // Update index
+    const remaining = list.filter(e => e.slug !== slug);
+    await writeDbIndex(remaining);
+    return { success: true };
+  } catch (e) {
+    return { success: false, message: e.message };
+  }
+});
+
 function slugify(input) {
   return String(input || '')
     .toLowerCase()
@@ -391,6 +415,23 @@ function getTokenFromCreds(creds) {
   return creds.token || creds.tokenJwt;
 }
 
+function mapLikeKeys(obj) {
+  if (!obj) return [];
+  if (obj instanceof Map) return Array.from(obj.keys());
+  if (Array.isArray(obj)) return obj.map(v => v && (v.name || v.table_name)).filter(Boolean);
+  if (typeof obj === 'object') return Object.keys(obj);
+  return [];
+}
+
+function mapLikeGet(obj, key) {
+  if (!obj || !key) return null;
+  const k = String(key);
+  if (obj instanceof Map) return obj.get(k) ?? obj.get(k.toLowerCase());
+  if (Array.isArray(obj)) return obj.find(v => (v?.name === k) || (v?.name && v.name.toLowerCase() === k.toLowerCase()));
+  if (typeof obj === 'object') return obj[k] ?? obj[k.toLowerCase()] ?? null;
+  return null;
+}
+
 async function connectFor(slug) {
   const list = await readDbIndex();
   const entry = list.find(e => e.slug === slug);
@@ -415,10 +456,10 @@ ipcMain.handle('db-schema', async (event, { slug }) => {
     await client.connect();
     const keyspace = entry.keyspaceName || client.keyspace || (await deriveKeyspaceFromScb(entry.scbPath));
     if (!keyspace) throw new Error('Keyspace not found in SCB');
-    const ks = await client.metadata.getKeyspace(keyspace);
+    const ks = await getKeyspaceMeta(client.metadata, keyspace);
     if (!ks) throw new Error(`Keyspace not found: ${keyspace}`);
-    const tables = Array.from(ks.tables.keys()).sort();
-    const types = Array.from(ks.udts.keys()).sort();
+    const tables = mapLikeKeys(ks.tables).sort();
+    const types = mapLikeKeys(ks.udts).sort();
     return { success: true, keyspace, tables, types };
   } catch (e) {
     return { success: false, message: e.message };
@@ -432,8 +473,8 @@ ipcMain.handle('describe-table', async (event, { slug, table }) => {
   try {
     await client.connect();
     const keyspace = entry.keyspaceName || client.keyspace || (await deriveKeyspaceFromScb(entry.scbPath));
-    const ks = await client.metadata.getKeyspace(keyspace);
-    const tm = ks && ks.tables ? ks.tables.get(table) : null;
+    const ks = await getKeyspaceMeta(client.metadata, keyspace);
+    const tm = ks && ks.tables ? mapLikeGet(ks.tables, table) : null;
     if (!tm) throw new Error(`Table not found: ${keyspace}.${table}`);
     const ddl = renderCreateTable(keyspace, tm);
     return { success: true, createCql: ddl };
@@ -449,8 +490,8 @@ ipcMain.handle('describe-type', async (event, { slug, type }) => {
   try {
     await client.connect();
     const keyspace = entry.keyspaceName || client.keyspace || (await deriveKeyspaceFromScb(entry.scbPath));
-    const ks = await client.metadata.getKeyspace(keyspace);
-    const udt = ks && ks.udts ? ks.udts.get(type) : null;
+    const ks = await getKeyspaceMeta(client.metadata, keyspace);
+    const udt = ks && ks.udts ? mapLikeGet(ks.udts, type) : null;
     if (!udt) throw new Error(`Type not found: ${keyspace}.${type}`);
     const ddl = renderCreateType(keyspace, udt);
     return { success: true, createCql: ddl };
@@ -460,6 +501,19 @@ ipcMain.handle('describe-type', async (event, { slug, type }) => {
     await client.shutdown().catch(() => {});
   }
 });
+
+function getKeyspaceMeta(metadata, keyspace) {
+  if (!metadata) return null;
+  try {
+    if (typeof metadata.getKeyspace === 'function') {
+      return metadata.getKeyspace(keyspace);
+    }
+  } catch (_) {}
+  const ks = metadata.keyspaces;
+  if (ks instanceof Map) return ks.get(keyspace);
+  if (ks && typeof ks === 'object') return ks[keyspace] || (typeof ks.get === 'function' ? ks.get(keyspace) : null);
+  return null;
+}
 
 function renderCreateTable(keyspace, tm) {
   const cols = Array.from(tm.columns.values()).map(c => `  ${c.name} ${c.type}`);

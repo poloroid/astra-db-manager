@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.invoke('scb-config-data', arrayBuffer),
   getDatabases: () => ipcRenderer.invoke('get-databases')
   ,
+  deleteDatabase: (slug) => ipcRenderer.invoke('delete-db', { slug })
+  ,
   dbSchema: (slug) => ipcRenderer.invoke('db-schema', { slug }),
   describeTable: (slug, table) => ipcRenderer.invoke('describe-table', { slug, table }),
   describeType: (slug, type) => ipcRenderer.invoke('describe-type', { slug, type })

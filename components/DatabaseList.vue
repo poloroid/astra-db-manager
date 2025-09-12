@@ -9,6 +9,9 @@
         <button class="icon" @click="$emit('explore', db)" title="Explore">
           🔍
         </button>
+        <button class="icon danger" @click="$emit('delete', db)" title="Delete">
+          🗑️
+        </button>
       </div>
     </li>
   </ul>
