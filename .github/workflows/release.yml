@@ -22,17 +22,13 @@ jobs:
         run: npm ci
       - name: Run tests
         run: npm test
-      - name: Build and publish (macOS signed + notarized)
+      - name: Build and publish (macOS unsigned)
         if: runner.os == 'macOS'
         run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}/.cache/electron-builder
-          CSC_LINK: ${{ secrets.MAC_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.MAC_CSC_KEY_PASSWORD }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Build and publish (Windows signed)
         if: runner.os == 'Windows'
