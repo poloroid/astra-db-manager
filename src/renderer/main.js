@@ -1,34 +1,15 @@
-// Load Vue and the SFC loader from local node_modules to avoid external CDNs
-import * as Vue from './node_modules/vue/dist/vue.esm-browser.prod.js';
-import { loadModule } from './node_modules/vue3-sfc-loader/dist/vue3-sfc-loader.esm.js';
-
-const options = {
-  moduleCache: { vue: Vue },
-  getFile(url) {
-    return fetch(url).then(r => r.text());
-  },
-  addStyle(styleStr) {
-    const style = document.createElement('style');
-    style.textContent = styleStr;
-    document.head.appendChild(style);
-  }
-};
-
-const [DatabaseList, AddDatabaseModal, HamburgerMenu, DbExplorer] = await Promise.all([
-  loadModule('./components/DatabaseList.vue', options),
-  loadModule('./components/AddDatabaseModal.vue', options),
-  loadModule('./components/HamburgerMenu.vue', options),
-  loadModule('./components/DbExplorer.vue', options)
-]);
-
-const { createApp, defineAsyncComponent } = Vue;
+import { createApp } from 'vue';
+import DatabaseList from '../../components/DatabaseList.vue';
+import AddDatabaseModal from '../../components/AddDatabaseModal.vue';
+import HamburgerMenu from '../../components/HamburgerMenu.vue';
+import DbExplorer from '../../components/DbExplorer.vue';
+import CqlConsole from '../../components/CqlConsole.vue';
 
 const app = createApp({
   data() {
     return {
       databases: [],
       showModal: false,
-      // Default to dark mode on first run to match Astra style
       darkMode: (() => {
         const stored = localStorage.getItem('darkMode');
         return stored ? stored === 'true' : true;
@@ -42,7 +23,6 @@ const app = createApp({
     if (this.darkMode) {
       document.body.classList.add('dark');
     }
-    // Load persisted databases
     if (window?.electronAPI?.getDatabases) {
       window.electronAPI.getDatabases().then((res) => {
         if (res?.success && Array.isArray(res.databases)) {
@@ -67,6 +47,19 @@ const app = createApp({
       this.currentDb = db;
       this.view = 'explorer';
     },
+    backHome() {
+      this.view = 'home';
+      this.currentDb = null;
+    },
+    async testConnection({ scbFile, credsFile }) {
+      const result = await window.electronAPI.testConnection(scbFile.path, credsFile.path);
+      alert(result.success ? 'Connection succeeded' : 'Connection failed');
+    },
+    toggleDarkMode() {
+      this.darkMode = !this.darkMode;
+      document.body.classList.toggle('dark', this.darkMode);
+      localStorage.setItem('darkMode', this.darkMode);
+    },
     async deleteDatabase(db) {
       try {
         if (!db?.slug) return;
@@ -84,19 +77,6 @@ const app = createApp({
       } catch (e) {
         alert('Delete failed');
       }
-    },
-    backHome() {
-      this.view = 'home';
-      this.currentDb = null;
-    },
-    async testConnection({ scbFile, credsFile }) {
-      const result = await window.electronAPI.testConnection(scbFile.path, credsFile.path);
-      alert(result.success ? 'Connection succeeded' : 'Connection failed');
-    },
-    toggleDarkMode() {
-      this.darkMode = !this.darkMode;
-      document.body.classList.toggle('dark', this.darkMode);
-      localStorage.setItem('darkMode', this.darkMode);
     }
   }
 });
@@ -105,6 +85,7 @@ app.component('database-list', DatabaseList);
 app.component('add-database-modal', AddDatabaseModal);
 app.component('hamburger-menu', HamburgerMenu);
 app.component('db-explorer', DbExplorer);
-app.component('cql-console', defineAsyncComponent(() => loadModule('./components/CqlConsole.vue', options)));
+app.component('cql-console', CqlConsole);
 
 app.mount('#app');
+

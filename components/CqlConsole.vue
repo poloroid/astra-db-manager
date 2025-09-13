@@ -2,8 +2,9 @@
   <div class="xterm-wrap"><div ref="term" class="xterm-container"></div></div>
 </template>
 <script>
-import { Terminal } from '../node_modules/xterm/lib/xterm.js';
-import { FitAddon } from '../node_modules/xterm-addon-fit/lib/FitAddon.js';
+import { Terminal } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import '@xterm/xterm/css/xterm.css';
 
 const KEYWORDS = [
   'SELECT','FROM','WHERE','INSERT','INTO','VALUES','UPDATE','SET','DELETE','IF','EXISTS','NOT','PRIMARY','KEY',
@@ -99,8 +100,15 @@ export default {
     }
   },
   mounted() {
+    if (!Terminal) {
+      // Show a simple message if terminal libs failed to load
+      const el = this.$refs.term;
+      if (el) el.innerText = 'Terminal failed to load. Check console for errors.';
+      return;
+    }
     this.term = new Terminal({ convertEol: true, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \'Courier New\', monospace', fontSize: 12, theme: { background: '#121a2e', foreground: '#e6eaf2' }, cursorBlink: true });
-    this.fit = new FitAddon(); this.term.loadAddon(this.fit); this.term.open(this.$refs.term); try { this.fit.fit(); } catch (_) {}
+    if (FitAddon) { this.fit = new FitAddon(); this.term.loadAddon(this.fit); }
+    this.term.open(this.$refs.term); try { this.fit && this.fit.fit(); } catch (_) {}
     this.write('Welcome to CQL console. Type statements ending with ; and press Enter.\r\n'); this.showPrompt();
     this.term.onData(this.handleData); this.term.onKey(this.handleKey);
     const onResize = () => { try { this.fit.fit(); } catch (_) {} }; window.addEventListener('resize', onResize); this.$once('hook:beforeUnmount', () => window.removeEventListener('resize', onResize));

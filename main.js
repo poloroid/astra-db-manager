@@ -26,7 +26,13 @@ function createWindow() {
     }
   });
 
-  win.loadFile('index.html');
+  const devUrl = process.env.VITE_DEV_SERVER_URL || process.env.ELECTRON_START_URL;
+  if (devUrl) {
+    win.loadURL(devUrl);
+  } else {
+    const indexPath = path.join(__dirname, 'dist', 'index.html');
+    win.loadFile(indexPath);
+  }
 }
 
 app.whenReady().then(() => {
@@ -370,11 +376,11 @@ async function deriveDbNameFromScb(scbPath) {
     if (txt) {
       try {
         const cfg = JSON.parse(txt);
+        // Prefer explicit database identifiers; do NOT fall back to keyspace
         const candidates = [
           cfg.database_name,
           cfg.databaseName,
           cfg.db,
-          cfg.keyspace,
           cfg.name,
           cfg.cluster_name
         ];
