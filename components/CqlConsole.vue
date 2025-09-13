@@ -1,77 +1,56 @@
 <template>
-  <div class="console">
-    <div class="console-input">
-      <textarea
-        ref="editor"
-        v-model="text"
-        class="code-input"
-        placeholder="-- Type CQL and press Run or Ctrl+Enter\nSELECT * FROM system.local;"
-        @keydown.tab.prevent="applyAutocomplete()"
-        @keyup="updateSuggestions"
-      ></textarea>
-      <div v-if="suggestions.length" class="suggestions">
-        <span class="muted">suggestions:</span>
-        <span v-for="s in suggestions.slice(0, 10)" :key="s" class="sg">{{ s }}</span>
-        <span v-if="suggestions.length > 10" class="muted">…</span>
-      </div>
-      <div class="actions">
-        <button @click="run" :disabled="running">{{ running ? 'Running…' : 'Run' }}</button>
-        <button @click="clearOutput" :disabled="!output.length">Clear</button>
-      </div>
-    </div>
-    <div class="console-output">
-      <div v-for="(entry, idx) in output" :key="idx" class="entry">
-        <div class="prompt">cql&gt; {{ entry.statement }}</div>
-        <pre v-if="entry.error" class="err">Error: {{ entry.error }}</pre>
-        <template v-else>
-          <pre class="tbl" v-if="entry.columns && entry.columns.length">
-{{ renderTable(entry.columns, entry.rows) }}
-          </pre>
-          <div class="hint" v-else>OK ({{ entry.rowCount }} rows, {{ entry.tookMs }} ms)</div>
-        </template>
-      </div>
-    </div>
-  </div>
-  
+  <div class="xterm-wrap"><div ref="term" class="xterm-container"></div></div>
 </template>
 <script>
+import { Terminal } from '../node_modules/xterm/lib/xterm.js';
+import { FitAddon } from '../node_modules/xterm-addon-fit/lib/FitAddon.js';
+
 const KEYWORDS = [
   'SELECT','FROM','WHERE','INSERT','INTO','VALUES','UPDATE','SET','DELETE','IF','EXISTS','NOT','PRIMARY','KEY',
   'CREATE','TABLE','TYPE','KEYSPACE','INDEX','MATERIALIZED','VIEW','WITH','AND','ORDER','BY','ASC','DESC',
-  'ALLOW','FILTERING','LIMIT','TOKEN','IN','CONTAINS','CONTAINS KEY','DROP','ALTER','ADD','APPLY','BATCH',
-  'BEGIN','TRUNCATE','USE'
+  'ALLOW','FILTERING','LIMIT','TOKEN','IN','CONTAINS','DROP','ALTER','ADD','APPLY','BATCH','BEGIN','TRUNCATE','USE'
 ];
 
 export default {
   props: ['db', 'knownTables', 'knownTypes'],
   data() {
     return {
-      text: '',
-      running: false,
-      output: [],
-      suggestions: []
+      term: null,
+      fit: null,
+      buffer: '',
+      input: '',
+      history: [],
+      histIdx: -1,
+      prompt: 'cql> '
     };
   },
   methods: {
-    async run() {
-      const stmt = (this.text || '').trim();
-      if (!stmt) return;
-      this.running = true;
+    write(s) { this.term && this.term.write(s); },
+    nl() { this.write('\r\n'); },
+    showPrompt() { this.write(`\x1b[1m${this.prompt}\x1b[0m`); },
+    clearLine() { this.write('\r\x1b[2K'); this.showPrompt(); this.write(this.input); },
+    async executeIfReady() {
+      const trimmed = this.input.trim();
+      this.nl();
+      this.buffer += (this.input + '\n');
+      this.input = '';
+      if (!trimmed.endsWith(';')) { this.prompt = '...> '; this.showPrompt(); return; }
+      const stmt = this.buffer.trim(); this.buffer = ''; this.prompt = 'cql> ';
+      if (!stmt) { this.showPrompt(); return; }
+      this.history.push(stmt); this.histIdx = this.history.length;
       try {
         const res = await window.electronAPI.executeCql(this.db.slug, stmt);
         if (res?.success && Array.isArray(res.results)) {
-          res.results.forEach(r => this.output.push(r));
-        } else {
-          this.output.push({ statement: stmt, error: res?.message || 'Execution failed' });
-        }
-      } catch (e) {
-        this.output.push({ statement: stmt, error: 'Execution failed' });
-      } finally {
-        this.running = false;
-      }
-    },
-    clearOutput() {
-      this.output = [];
+          for (const r of res.results) {
+            if (r.columns?.length) {
+              const txt = this.renderTable(r.columns, r.rows || []);
+              this.write(txt.split('\n').map(l => l + '\r\n').join(''));
+            }
+            this.write(`(\x1b[36m${r.rowCount}\x1b[0m rows, \x1b[36m${r.tookMs}\x1b[0m ms)\r\n`);
+          }
+        } else { this.write(`\x1b[31mError:\x1b[0m ${res?.message || 'Execution failed'}\r\n`); }
+      } catch (_) { this.write(`\x1b[31mError:\x1b[0m Execution failed\r\n`); }
+      this.showPrompt();
     },
     renderTable(cols, rows) {
       const widths = cols.map(c => c.length);
@@ -88,64 +67,47 @@ export default {
       const lines = rows.map(r => cols.map((c, i) => pad((r[c] == null ? 'null' : (typeof r[c] === 'object' ? JSON.stringify(r[c]) : String(r[c]))), widths[i])).join('  '));
       return [header, sep, ...lines].join('\n');
     },
-    updateSuggestions() {
-      const text = this.text || '';
-      const caret = this.$refs.editor ? this.$refs.editor.selectionStart : text.length;
-      const upto = text.slice(0, caret);
-      const m = upto.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
-      if (!m) { this.suggestions = []; return; }
+    tryAutocomplete() {
+      const pool = [ ...KEYWORDS, ...(this.knownTables || []), ...(this.knownTypes || []) ];
+      const m = this.input.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
+      if (!m) return false;
       const tok = m[1];
-      const pool = [
-        ...KEYWORDS,
-        ...(this.knownTables || []),
-        ...(this.knownTypes || [])
-      ];
       const lower = tok.toLowerCase();
-      const sugg = Array.from(new Set(pool.filter(w => String(w).toLowerCase().startsWith(lower))));
-      this.suggestions = sugg.slice(0, 25);
+      const candidates = Array.from(new Set(pool.filter(w => String(w).toLowerCase().startsWith(lower))));
+      if (candidates.length === 0) return false;
+      if (candidates.length === 1) {
+        const insert = candidates[0];
+        const before = this.input.slice(0, this.input.length - tok.length) + insert;
+        this.input = before; this.clearLine(); return true;
+      }
+      this.nl(); this.write(candidates.slice(0, 20).join('  ') + (candidates.length > 20 ? ' …' : '') + '\r\n');
+      this.showPrompt(); this.write(this.input); return false;
     },
-    applyAutocomplete() {
-      if (!this.suggestions.length) return;
-      const text = this.text || '';
-      const ta = this.$refs.editor;
-      const caret = ta ? ta.selectionStart : text.length;
-      const upto = text.slice(0, caret);
-      const after = text.slice(caret);
-      const m = upto.match(/([a-zA-Z_][a-zA-Z0-9_]*)$/);
-      if (!m) return;
-      const prefix = m[1];
-      const insert = this.suggestions[0];
-      const before = upto.slice(0, upto.length - prefix.length) + insert;
-      this.text = before + after;
-      this.$nextTick(() => {
-        if (ta) {
-          const pos = before.length;
-          ta.setSelectionRange(pos, pos);
-        }
-      });
-      this.updateSuggestions();
+    handleData(data) {
+      for (const ch of data) {
+        const code = ch.charCodeAt(0);
+        if (ch === '\r') { this.executeIfReady(); continue; }
+        if (code === 0x7F) { if (this.input.length) { this.input = this.input.slice(0,-1); this.write('\b \b'); } continue; }
+        if (ch === '\t') { const ok = this.tryAutocomplete(); if (!ok) this.write('\x07'); continue; }
+        if (code >= 0x20 && code !== 0x7F) { this.input += ch; this.write(ch); }
+      }
+    },
+    handleKey(e) {
+      if (e.domEvent.key === 'ArrowUp') { if (this.histIdx > 0) { this.histIdx--; this.input = this.history[this.histIdx] || ''; this.clearLine(); } e.preventDefault(); }
+      else if (e.domEvent.key === 'ArrowDown') { if (this.histIdx < this.history.length - 1) { this.histIdx++; this.input = this.history[this.histIdx] || ''; } else { this.histIdx = this.history.length; this.input=''; } this.clearLine(); e.preventDefault(); }
+      else if ((e.domEvent.ctrlKey || e.domEvent.metaKey) && e.domEvent.key.toLowerCase() === 'c') { this.buffer=''; this.input=''; this.nl(); this.showPrompt(); e.preventDefault(); }
     }
   },
   mounted() {
-    // Keyboard shortcut: Ctrl/Cmd + Enter to run
-    this.$refs.editor && this.$refs.editor.addEventListener('keydown', (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === 'Enter') {
-        e.preventDefault();
-        this.run();
-      }
-    });
+    this.term = new Terminal({ convertEol: true, fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, \'Courier New\', monospace', fontSize: 12, theme: { background: '#121a2e', foreground: '#e6eaf2' }, cursorBlink: true });
+    this.fit = new FitAddon(); this.term.loadAddon(this.fit); this.term.open(this.$refs.term); try { this.fit.fit(); } catch (_) {}
+    this.write('Welcome to CQL console. Type statements ending with ; and press Enter.\r\n'); this.showPrompt();
+    this.term.onData(this.handleData); this.term.onKey(this.handleKey);
+    const onResize = () => { try { this.fit.fit(); } catch (_) {} }; window.addEventListener('resize', onResize); this.$once('hook:beforeUnmount', () => window.removeEventListener('resize', onResize));
   }
 };
 </script>
 <style>
-.console { display: grid; grid-template-columns: 1fr; gap: 10px; }
-.console-input { display: grid; gap: 8px; }
-.code-input { min-height: 120px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 10px; padding: 10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 12px; }
-.console-output { border: 1px solid var(--border); border-radius: 10px; padding: 10px; background: var(--surface); max-height: 50vh; overflow: auto; }
-.prompt { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: 12px; margin-bottom: 6px; }
-.entry { margin-bottom: 12px; }
-.err { color: #ff6b6b; white-space: pre-wrap; }
-.tbl { white-space: pre; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Courier New", monospace; font-size: 12px; }
-.suggestions { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-.suggestions .sg { background: rgba(123, 97, 255, 0.12); border: 1px solid var(--border); border-radius: 8px; padding: 2px 6px; font-size: 11px; }
+.xterm-wrap { border: 1px solid var(--border); border-radius: 10px; background: var(--surface); min-height: 260px; }
+.xterm-container { width: 100%; height: 50vh; min-height: 260px; }
 </style>
