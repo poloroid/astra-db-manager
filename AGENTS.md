@@ -11,6 +11,11 @@
 - `npm start` — launch the Electron app locally.
 - `npm test` — run Vitest in `jsdom` with Vue Test Utils.
 
+Lockfile policy
+- Always run `npm install` after changing `package.json` to update `package-lock.json`.
+- Commit `package-lock.json` with the same change (CI uses `npm ci` and will fail if out of sync).
+- Use Conventional Commit scope `chore(lock): ...` when committing lockfile-only updates.
+
 Notes
 - The renderer loads Vue SFCs via `vue3-sfc-loader` at runtime; no bundler is required for development.
 - IPC is exposed via `window.electronAPI` from `preload.js`. Prefer this bridge for renderer↔main communication.
