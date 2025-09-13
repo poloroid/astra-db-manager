@@ -31,6 +31,11 @@ Notes
 - Scope: test component rendering, emitted events, and basic interaction; mock `window.electronAPI` and global `alert` as needed.
 - Run tests via `npm test`.
 
+Test-before-commit policy
+- Always run `npm test` locally before proposing or making a commit/PR.
+- Do not commit changes that break existing tests; fix or xfail only with justification.
+- CI runs `npm ci` + `npm test`, so local test parity is required.
+
 ## Commit & Pull Request Guidelines
 - Use Conventional Commits: `feat:`, `fix:`, `refactor:`, `chore:`, etc. Keep messages imperative and scoped.
 - PRs must include: concise description, linked issue (if any), steps to validate, and screenshots/gifs for UI changes.
