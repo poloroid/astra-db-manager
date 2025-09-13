@@ -34,13 +34,21 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Build and publish (Windows signed)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && secrets.WIN_CSC_LINK != '' && secrets.WIN_CSC_KEY_PASSWORD != ''
         run: npx electron-builder --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\\.cache\\electron-builder
           CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
           CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+
+      - name: Build and publish (Windows unsigned)
+        if: runner.os == 'Windows' && (secrets.WIN_CSC_LINK == '' || secrets.WIN_CSC_KEY_PASSWORD == '')
+        run: npx electron-builder --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\\.cache\\electron-builder
+          CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Build and publish (Linux)
         if: runner.os == 'Linux'
