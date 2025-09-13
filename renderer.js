@@ -14,15 +14,14 @@ const options = {
   }
 };
 
-const [DatabaseList, AddDatabaseModal, HamburgerMenu, DbExplorer, CqlConsole] = await Promise.all([
+const [DatabaseList, AddDatabaseModal, HamburgerMenu, DbExplorer] = await Promise.all([
   loadModule('./components/DatabaseList.vue', options),
   loadModule('./components/AddDatabaseModal.vue', options),
   loadModule('./components/HamburgerMenu.vue', options),
-  loadModule('./components/DbExplorer.vue', options),
-  loadModule('./components/CqlConsole.vue', options)
+  loadModule('./components/DbExplorer.vue', options)
 ]);
 
-const { createApp } = Vue;
+const { createApp, defineAsyncComponent } = Vue;
 
 const app = createApp({
   data() {
@@ -106,6 +105,6 @@ app.component('database-list', DatabaseList);
 app.component('add-database-modal', AddDatabaseModal);
 app.component('hamburger-menu', HamburgerMenu);
 app.component('db-explorer', DbExplorer);
-app.component('cql-console', CqlConsole);
+app.component('cql-console', defineAsyncComponent(() => loadModule('./components/CqlConsole.vue', options)));
 
 app.mount('#app');
