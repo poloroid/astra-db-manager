@@ -31,13 +31,21 @@ https://github.com/poloroid/astra-db-manager/releases
 
 ```bash
 npm install
-npm start
+
+# Terminal A (Vite dev server)
+npm run dev
+
+# Terminal B (launch Electron pointing to dev server)
+npm run electron-dev
 ```
 
-Live reload (no manual restarts)
-- The app auto-reloads on file changes in development.
-- Edit `components/*.vue`, `renderer.js`, `styles.css`, `main.js`.
-- Renderer changes reload the window; main/preload changes restart Electron.
+Build + run (production-like)
+- `npm start` — builds the renderer with Vite and launches Electron to load `dist/index.html`.
+
+Editing guide
+- Renderer entry: `src/renderer/main.js`; app root: `src/renderer/App.vue`.
+- Components live in `components/*.vue`; global styles in `styles.css`.
+- Main process code in `main.js`; preload bridge in `preload.js`.
 
 ## Testing
 

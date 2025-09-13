@@ -1,14 +1,17 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `main.js` (Electron main process), `preload.js` (safe IPC bridge), `index.html` + `renderer.js` (Vue app in renderer), `styles.css`.
-- `components/` Vue SFCs (PascalCase, one component per file).
+- `main.js` (Electron main process), `preload.js` (safe IPC bridge).
+- Renderer (Vite): `index.html` + `src/renderer/main.js` mounts `src/renderer/App.vue`.
+- `components/` Vue SFCs used by the renderer (PascalCase, one component per file).
+- `styles.css` global styles.
 - `tests/` Vitest specs (unit tests for components and logic).
 - `rebuild-keytar.js` helper for native module troubleshooting.
 
 ## Build, Test, and Development Commands
 - `npm install` — install dependencies.
-- `npm start` — launch the Electron app locally.
+- Dev: `npm run dev` (Vite) in one terminal; `npm run electron-dev` in another.
+- Prod-like: `npm start` — builds (`vite build`) then launches Electron.
 - `npm test` — run Vitest in `jsdom` with Vue Test Utils.
 
 Lockfile policy
@@ -17,7 +20,7 @@ Lockfile policy
 - Use Conventional Commit scope `chore(lock): ...` when committing lockfile-only updates.
 
 Notes
-- The renderer loads Vue SFCs via `vue3-sfc-loader` at runtime; no bundler is required for development.
+- The renderer is bundled by Vite (@vitejs/plugin-vue); entry is `src/renderer/main.js`.
 - IPC is exposed via `window.electronAPI` from `preload.js`. Prefer this bridge for renderer↔main communication.
 
 ## Coding Style & Naming Conventions
