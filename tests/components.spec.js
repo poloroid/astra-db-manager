@@ -47,8 +47,7 @@ describe('HamburgerMenu', () => {
   it('toggles menu and emits toggle-dark', async () => {
     const wrapper = mount(HamburgerMenu, { props: { dark: true } });
     expect(wrapper.vm.menuOpen).toBe(false);
-    // Open menu via method to avoid DOM flakiness
-    wrapper.vm.toggleMenu();
+    await wrapper.find('button.hamburger').trigger('click');
     await wrapper.vm.$nextTick();
     expect(wrapper.vm.menuOpen).toBe(true);
     // Call method directly to avoid DOM selector flakiness in CI
@@ -70,14 +69,24 @@ describe('DbExplorer filters', () => {
       describeTable: () => Promise.resolve({ success: true, createCql: '' }),
       describeType: () => Promise.resolve({ success: true, createCql: '' })
     };
+    const { nextTick } = await import('vue');
     const DbExplorer = (await import('../components/DbExplorer.vue')).default;
     const wrapper = shallowMount(DbExplorer, {
       props: { db: { slug: 's', name: 'N' } },
       global: { stubs: { 'cql-console': true } }
     });
     // set data after mount
-    await wrapper.setData({ tables, types, tableQuery: 'us', typeQuery: 'pro' });
-    expect(wrapper.vm.filteredTables).toEqual(['users']);
-    expect(wrapper.vm.filteredTypes).toEqual(['profile']);
+    await wrapper.setData({ tables, types });
+    wrapper.vm.tableQuery = 'us';
+    await nextTick();
+    // Assert via rendered list to ensure filter applied
+    const tableItems = wrapper.findAll('.list .item').filter(w => !w.classes('muted')).map(w => w.text());
+    expect(tableItems).toEqual(['users']);
+    // Switch to types tab and apply filter
+    wrapper.vm.tab = 'types';
+    wrapper.vm.typeQuery = 'pro';
+    await nextTick();
+    const typeItems = wrapper.findAll('.list .item').filter(w => !w.classes('muted')).map(w => w.text());
+    expect(typeItems).toEqual(['profile']);
   });
 });
