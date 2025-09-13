@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { mount } from '@vue/test-utils';
+import { mount, shallowMount } from '@vue/test-utils';
 
 import DatabaseList from '../components/DatabaseList.vue';
 import AddDatabaseModal from '../components/AddDatabaseModal.vue';
@@ -48,8 +48,11 @@ describe('HamburgerMenu', () => {
     const wrapper = mount(HamburgerMenu, { props: { dark: true } });
     expect(wrapper.vm.menuOpen).toBe(false);
     await wrapper.find('button.hamburger').trigger('click');
+    await wrapper.vm.$nextTick();
     expect(wrapper.vm.menuOpen).toBe(true);
-    await wrapper.find('.menu .icon-btn').trigger('click');
+    const themeBtn = wrapper.find('.menu .icon-btn');
+    expect(themeBtn.exists()).toBe(true);
+    await themeBtn.trigger('click');
     expect(wrapper.emitted()['toggle-dark']).toBeTruthy();
     // menu stays open after toggling dark
     expect(wrapper.vm.menuOpen).toBe(true);
@@ -67,9 +70,14 @@ describe('DbExplorer filters', () => {
       describeTable: () => Promise.resolve({ success: true, createCql: '' }),
       describeType: () => Promise.resolve({ success: true, createCql: '' })
     };
-    vi.mock('../components/CqlConsole.vue', () => ({ default: { template: '<div />' } }));
     const DbExplorer = (await import('../components/DbExplorer.vue')).default;
-    const wrapper = mount(DbExplorer, { props: { db: { slug: 's', name: 'N' } } });
+    const wrapper = shallowMount(DbExplorer, {
+      props: { db: { slug: 's', name: 'N' } },
+      global: { stubs: { 'cql-console': true } }
+    });
+    // set data after mount
+    wrapper.vm.tables = tables;
+    wrapper.vm.types = types;
     await wrapper.vm.$nextTick();
     wrapper.vm.tableQuery = 'us';
     wrapper.vm.typeQuery = 'pro';
