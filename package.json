@@ -47,13 +47,13 @@
     },
     "win": {
       "target": ["nsis"],
-      "artifactName": "${productName}-${version}-win-${arch}.${ext}"
+      "artifactName": "${productName}-win-${arch}.${ext}"
     },
     "linux": {
       "target": ["AppImage"],
       "category": "Development",
-      "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+      "artifactName": "${productName}-${os}-${arch}.${ext}"
     },
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}"
+    "artifactName": "${productName}-${os}-${arch}.${ext}"
   }
 }
