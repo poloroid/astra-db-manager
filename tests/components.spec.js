@@ -50,7 +50,7 @@ describe('HamburgerMenu', () => {
     await wrapper.find('button.hamburger').trigger('click');
     await wrapper.vm.$nextTick();
     expect(wrapper.vm.menuOpen).toBe(true);
-    const themeBtn = wrapper.find('.menu .icon-btn');
+    const themeBtn = wrapper.find('button.icon-btn');
     expect(themeBtn.exists()).toBe(true);
     await themeBtn.trigger('click');
     expect(wrapper.emitted()['toggle-dark']).toBeTruthy();
