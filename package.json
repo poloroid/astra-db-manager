@@ -9,7 +9,8 @@
     "dev": "vite",
     "build": "vite build",
     "test": "vitest run",
-    "release": "electron-builder --publish always"
+    "release": "electron-builder --publish always",
+    "prepare": "husky install"
   },
   "dependencies": {
     "vue": "^3.4.0",
@@ -27,7 +28,8 @@
     "jsdom": "^22.1.0",
     "vitest": "^1.0.0",
     "@vitejs/plugin-vue": "^5.0.0",
-    "electron-reload": "^1.5.0"
+    "electron-reload": "^1.5.0",
+    "husky": "^9.0.11"
   },
   "overrides": {
     "esbuild": "^0.21.5"

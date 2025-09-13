@@ -1,7 +1,42 @@
-import { createApp } from 'vue';
-import App from './App.vue';
+<template>
+  <div>
+    <hamburger-menu @toggle-dark="toggleDarkMode"></hamburger-menu>
 
-const app = createApp(App);
+    <h1>{{ title }}</h1>
+
+    <div v-if="view !== 'explorer'">
+      <database-list :databases="databases" @explore="exploreDb" @delete="deleteDatabase"></database-list>
+      <button @click="openModal">Add Database</button>
+    </div>
+
+    <div v-else>
+      <db-explorer :db="currentDb" @back="backHome"></db-explorer>
+    </div>
+
+    <add-database-modal
+      v-if="showModal"
+      @save="addDatabase"
+      @test="testConnection"
+      @close="closeModal"
+    ></add-database-modal>
+  </div>
+</template>
+<script>
+import DatabaseList from '../../components/DatabaseList.vue';
+import AddDatabaseModal from '../../components/AddDatabaseModal.vue';
+import HamburgerMenu from '../../components/HamburgerMenu.vue';
+import DbExplorer from '../../components/DbExplorer.vue';
+import CqlConsole from '../../components/CqlConsole.vue';
+
+export default {
+  name: 'App',
+  components: {
+    DatabaseList,
+    AddDatabaseModal,
+    HamburgerMenu,
+    DbExplorer,
+    CqlConsole
+  },
   data() {
     return {
       databases: [],
@@ -75,4 +110,5 @@ const app = createApp(App);
       }
     }
   }
-app.mount('#app');
+};
+</script>
