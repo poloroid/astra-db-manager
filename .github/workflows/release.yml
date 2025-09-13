@@ -10,6 +10,10 @@ on:
 
 jobs:
   build:
+    env:
+      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest, windows-latest]
@@ -34,19 +38,17 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Build and publish (Windows signed)
-        if: runner.os == 'Windows' && secrets.WIN_CSC_LINK != '' && secrets.WIN_CSC_KEY_PASSWORD != ''
+        if: runner.os == 'Windows' && env.WIN_CSC_LINK != '' && env.WIN_CSC_KEY_PASSWORD != ''
         run: npx electron-builder --publish always
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\\.cache\\electron-builder
-          CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+          CSC_LINK: ${{ env.WIN_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ env.WIN_CSC_KEY_PASSWORD }}
 
       - name: Build and publish (Windows unsigned)
-        if: runner.os == 'Windows' && (secrets.WIN_CSC_LINK == '' || secrets.WIN_CSC_KEY_PASSWORD == '')
+        if: runner.os == 'Windows' && (env.WIN_CSC_LINK == '' || env.WIN_CSC_KEY_PASSWORD == '')
         run: npx electron-builder --publish always
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\\.cache\\electron-builder
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
