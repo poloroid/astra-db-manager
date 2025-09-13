@@ -11,8 +11,9 @@ on:
 jobs:
   build:
     env:
-      WIN_CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
-      WIN_CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
+      # Electron-Builder expects CSC_LINK/CSC_KEY_PASSWORD
+      CSC_LINK: ${{ secrets.WIN_CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.WIN_CSC_KEY_PASSWORD }}
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     strategy:
       matrix:
@@ -38,15 +39,15 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: false
 
       - name: Build and publish (Windows signed)
-        if: runner.os == 'Windows' && env.WIN_CSC_LINK != '' && env.WIN_CSC_KEY_PASSWORD != ''
-        run: npx electron-builder --publish always
+        if: runner.os == 'Windows' && env.CSC_LINK != '' && env.CSC_KEY_PASSWORD != ''
+        run: |
+          echo "Signing: CSC_LINK length %{{ env.CSC_LINK }}%" | powershell -Command "$env:CSC_LINK.Length"
+          npx electron-builder --publish always
         env:
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\\.cache\\electron-builder
-          CSC_LINK: ${{ env.WIN_CSC_LINK }}
-          CSC_KEY_PASSWORD: ${{ env.WIN_CSC_KEY_PASSWORD }}
 
       - name: Build and publish (Windows unsigned)
-        if: runner.os == 'Windows' && (env.WIN_CSC_LINK == '' || env.WIN_CSC_KEY_PASSWORD == '')
+        if: runner.os == 'Windows' && (env.CSC_LINK == '' || env.CSC_KEY_PASSWORD == '')
         run: npx electron-builder --publish always
         env:
           ELECTRON_BUILDER_CACHE: ${{ runner.temp }}\\.cache\\electron-builder
