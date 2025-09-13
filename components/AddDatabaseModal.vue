@@ -13,7 +13,10 @@
 
       <p class="hint">Upload the Secure Connect Bundle (.zip) and the Credentials JSON from Astra.</p>
 
-      <!-- Name is derived automatically from SCB; no manual input to keep it simple. -->
+      <!-- Name input -->
+      <label class="label" for="dbName">Name</label>
+      <input id="dbName" class="text" type="text" v-model="dbName" placeholder="Database name" />
+      <div class="hint" v-if="!dbName">DevOps name not available; enter a name.</div>
 
       <!-- Combined drop zone: users can drop both files at once -->
       <div
@@ -130,6 +133,8 @@ export default {
       credsOver: false,
       bothOver: false,
       scbEntries: [],
+      scbFilesAll: [],
+      scbPreview: [],
       scbExpanded: false
     };
   },
@@ -273,7 +278,7 @@ export default {
     },
     deriveDbName(cfg) {
       if (!cfg || typeof cfg !== 'object') return '';
-      const candidates = [cfg.database_name, cfg.databaseName, cfg.db, cfg.keyspace, cfg.name, cfg.cluster_name];
+      const candidates = [cfg.database_name, cfg.databaseName, cfg.db, cfg.name, cfg.cluster_name];
       const val = candidates.find(v => typeof v === 'string' && v.trim().length > 0);
       return val ? String(val).trim() : '';
     },
@@ -326,7 +331,8 @@ export default {
     },
     onSave() {
       if (!this.scbFile || !this.credsFile) { alert('Select both files'); return; }
-      this.$emit('save', { scbFile: this.scbFile, credsFile: this.credsFile }, this.dbName);
+      if (!this.dbName || !this.dbName.trim()) { alert('Enter a database name'); return; }
+      this.$emit('save', { scbFile: this.scbFile, credsFile: this.credsFile }, this.dbName.trim());
     },
     async onTest() {
       if (!this.scbFile || !this.credsFile) { alert('Select both files'); return; }
