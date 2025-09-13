@@ -46,8 +46,9 @@ describe('AddDatabaseModal', () => {
 describe('HamburgerMenu', () => {
   it('toggles menu and emits toggle-dark', async () => {
     const wrapper = mount(HamburgerMenu, { props: { dark: true } });
-    // Open menu programmatically to avoid DOM timing differences in CI
-    await wrapper.setData({ menuOpen: true });
+    // Open menu reliably
+    wrapper.vm.menuOpen = true;
+    await wrapper.vm.$nextTick();
     expect(wrapper.vm.menuOpen).toBe(true);
     // Call method directly to avoid DOM selector flakiness in CI
     wrapper.vm.toggleDark();
@@ -71,14 +72,23 @@ describe('DbExplorer filters', () => {
     const { nextTick } = await import('vue');
     vi.mock('../components/CqlConsole.vue', () => ({ default: { template: '<div />' } }));
     const DbExplorer = (await import('../components/DbExplorer.vue')).default;
-    const wrapper = shallowMount(DbExplorer, {
+    const wrapper = mount(DbExplorer, {
       props: { db: { slug: 's', name: 'N' } },
       global: { stubs: { 'cql-console': true } }
     });
-    // set data after mount
-    await wrapper.setData({ tables, types, tableQuery: 'us', typeQuery: 'pro' });
+    // set data and ensure loading is false
+    await wrapper.setData({ tables, types, loading: false });
+    const tf = wrapper.find('input.filter');
+    await tf.setValue('us');
     await nextTick();
-    expect(wrapper.vm.filteredTables).toEqual(['users']);
-    expect(wrapper.vm.filteredTypes).toEqual(['profile']);
+    const tableItems = wrapper.findAll('.list .item').filter(w => !w.classes('muted')).map(w => w.text());
+    expect(tableItems).toEqual(['users']);
+    // Types
+    await wrapper.setData({ tab: 'types' });
+    const tyf = wrapper.find('input.filter');
+    await tyf.setValue('pro');
+    await nextTick();
+    const typeItems = wrapper.findAll('.list .item').filter(w => !w.classes('muted')).map(w => w.text());
+    expect(typeItems).toEqual(['profile']);
   });
 });
